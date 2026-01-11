@@ -502,8 +502,180 @@ class MedicalDataGenerator:
     # ==================== 就诊记录数据生成 ====================
 
     def generate_medical_visits(self, visits_per_patient=3):
-        """生成就诊记录数据"""
-        print(f"\n📊 为每个患者生成 {visits_per_patient} 个就诊记录...")
+        """生成就诊记录数据，支持时间趋势分析"""
+        print(f"\n📊 为每个患者生成 {visits_per_patient} 个就诊记录（确保过去6个月有数据）...")
+
+        from datetime import datetime, timedelta
+        import random
+
+        # 获取医生和科室信息
+        self.cursor.execute("""
+            SELECT d.doctor_id, d.department_id, dept.hospital_id
+            FROM doctors d
+            JOIN departments dept ON d.department_id = dept.department_id
+            WHERE d.status = '在职'
+        """)
+        doctors_info = self.cursor.fetchall()
+
+        if not doctors_info:
+            print("⚠️  没有在职医生信息，无法生成就诊记录")
+            return []
+
+        visits = []
+        visit_counter = 1
+
+        # 定义时间范围：确保过去6个月有足够数据
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=180)  # 过去6个月
+
+        print(f"   时间范围: {start_date.strftime('%Y-%m-%d')} 到 {end_date.strftime('%Y-%m-%d')}")
+
+        # 确保每个月的就诊量
+        monthly_targets = {}
+        current = start_date
+        while current <= end_date:
+            month_key = current.strftime('%Y-%m')
+            # 每月目标就诊量：20-50次
+            monthly_targets[month_key] = random.randint(20, 50)
+            # 移动到下个月
+            if current.month == 12:
+                current = datetime(current.year + 1, 1, 1)
+            else:
+                current = datetime(current.year, current.month + 1, 1)
+
+        print(f"   月度就诊目标: {monthly_targets}")
+
+        # 生成每个月的就诊记录
+        for month_key, target_count in monthly_targets.items():
+            year, month = map(int, month_key.split('-'))
+
+            for _ in range(target_count):
+                # 在当月内随机选择一天
+                day = random.randint(1, 28)
+                visit_date = datetime(year, month, day,
+                                      random.randint(8, 17),  # 工作时间
+                                      random.randint(0, 59))
+
+                # 随机选择患者
+                patient_id = random.choice(self.patient_ids)
+
+                # 随机选择医生
+                doctor_info = random.choice(doctors_info)
+
+                # 生成就诊信息
+                chief_complaint = random.choice([
+                    "咳嗽、发热3天",
+                    "头痛、头晕1周",
+                    "腹痛、腹泻2天",
+                    "胸闷、气短",
+                    "关节疼痛"
+                ])
+
+                diagnosis = random.choice([
+                    "上呼吸道感染",
+                    "高血压",
+                    "急性胃肠炎",
+                    "冠心病",
+                    "糖尿病"
+                ])
+
+                # 费用（随时间轻微上涨）
+                months_from_start = (year - start_date.year) * 12 + (month - start_date.month)
+                fee_inflation = 1.0 + (months_from_start * 0.02)  # 每月上涨2%
+
+                base_fee = random.uniform(50.0, 200.0)
+                total_fee = round(base_fee * fee_inflation, 2)
+
+                visit = {
+                    'visit_number': f'VIS{str(visit_counter).zfill(8)}',
+                    'patient_id': patient_id,
+                    'hospital_id': doctor_info['hospital_id'],
+                    'department_id': doctor_info['department_id'],
+                    'doctor_id': doctor_info['doctor_id'],
+                    'visit_date': visit_date,
+                    'visit_type': random.choice(['普通门诊', '急诊', '复诊']),
+                    'chief_complaint': chief_complaint,
+                    'diagnosis': diagnosis,
+                    'advice': "注意休息，按时服药",
+                    'temperature': round(random.uniform(36.5, 38.5), 1),
+                    'blood_pressure': f"{random.randint(110, 140)}/{random.randint(70, 90)}",
+                    'heart_rate': random.randint(65, 85),
+                    'payment_status': random.choice(['已支付', '医保结算']),
+                    'total_fee': total_fee,
+                    'is_emergency': random.random() < 0.1
+                }
+                visits.append(visit)
+                visit_counter += 1
+
+        # 再为部分患者添加一些历史就诊记录（超过6个月）
+        # 这样可以模拟完整的时间序列
+        historical_count = random.randint(20, 50)
+        historical_start = end_date - timedelta(days=365)  # 一年前
+        historical_end = start_date  # 6个月前
+
+        for _ in range(historical_count):
+            # 随机时间
+            days_between = (historical_end - historical_start).days
+            random_days = random.randint(0, days_between)
+            visit_date = historical_start + timedelta(days=random_days)
+
+            # 随机选择患者
+            patient_id = random.choice(self.patient_ids)
+
+            # 随机选择医生
+            doctor_info = random.choice(doctors_info)
+
+            # 生成就诊信息
+            chief_complaint = random.choice([
+                "咳嗽、发热3天",
+                "头痛、头晕1周"
+            ])
+
+            diagnosis = random.choice([
+                "上呼吸道感染",
+                "高血压"
+            ])
+
+            visit = {
+                'visit_number': f'HIS{str(visit_counter).zfill(8)}',
+                'patient_id': patient_id,
+                'hospital_id': doctor_info['hospital_id'],
+                'department_id': doctor_info['department_id'],
+                'doctor_id': doctor_info['doctor_id'],
+                'visit_date': visit_date,
+                'visit_type': '普通门诊',
+                'chief_complaint': chief_complaint,
+                'diagnosis': diagnosis,
+                'advice': "注意休息，多喝水",
+                'temperature': round(random.uniform(36.5, 37.5), 1),
+                'blood_pressure': f"{random.randint(120, 140)}/{random.randint(80, 90)}",
+                'heart_rate': random.randint(70, 90),
+                'payment_status': '已支付',
+                'total_fee': round(random.uniform(50.0, 150.0), 2),
+                'is_emergency': False
+            }
+            visits.append(visit)
+            visit_counter += 1
+
+        print(f"✅ 已生成 {len(visits)} 个就诊记录")
+
+        # 统计月度分布
+        monthly_counts = {}
+        for visit in visits:
+            month_key = visit['visit_date'].strftime('%Y-%m')
+            monthly_counts[month_key] = monthly_counts.get(month_key, 0) + 1
+
+        print(f"   月度分布统计:")
+        for month, count in sorted(monthly_counts.items()):
+            print(f"     {month}: {count}次")
+
+        return visits
+
+    def generate_trend_medical_visits(self, visits_per_patient=3):
+        """专门为时间趋势分析生成就诊记录数据"""
+        print(f"\n📈 生成具有时间趋势的就诊记录数据...")
+
+        from datetime import datetime, timedelta
 
         # 获取医生和科室信息
         self.cursor.execute("""
@@ -517,23 +689,87 @@ class MedicalDataGenerator:
         visits = []
         visit_counter = 1
 
-        for patient_id in self.patient_ids:
-            for i in range(random.randint(1, visits_per_patient)):  # 随机1-3次就诊
-                # 随机选择医生
-                doctor_info = random.choice(doctors_info)
+        # 时间范围：过去12个月
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=365)
 
-                # 生成就诊时间（最近2年内）
-                visit_date = fake.date_time_between(start_date='-2y', end_date='now')
+        # 定义月度增长趋势
+        # 模拟就诊量逐月增长的趋势
+        month_trends = {
+            '2023-07': 0.6,  # 半年前，就诊量较少
+            '2023-08': 0.7,
+            '2023-09': 0.8,
+            '2023-10': 0.9,
+            '2023-11': 1.0,
+            '2023-12': 1.1,
+            '2024-01': 1.2,
+            '2024-02': 1.3,
+            '2024-03': 1.4,
+            '2024-04': 1.5,
+            '2024-05': 1.6,
+            '2024-06': 1.7,  # 当前月，就诊量最多
+        }
 
-                # 生成症状和诊断
+        # 科室基础分布
+        dept_distribution = {
+            '内科': 0.25,
+            '外科': 0.20,
+            '儿科': 0.15,
+            '妇产科': 0.10,
+            '其他': 0.30
+        }
+
+        # 按科室分组医生
+        dept_doctors = {}
+        for doc in doctors_info:
+            dept_id = doc['department_id']
+            if dept_id not in dept_doctors:
+                dept_doctors[dept_id] = []
+            dept_doctors[dept_id].append(doc)
+
+        # 获取科室名称
+        dept_names = {}
+        self.cursor.execute("SELECT department_id, dept_name FROM departments")
+        for row in self.cursor.fetchall():
+            dept_names[row['department_id']] = row['dept_name']
+
+        # 为每个月生成就诊记录
+        for month_key, trend_factor in month_trends.items():
+            # 计算这个月应该生成的记录数
+            base_count = 20  # 每月基础记录数
+            month_count = int(base_count * trend_factor)
+
+            # 解析月份
+            year, month = map(int, month_key.split('-'))
+
+            for _ in range(month_count):
+                # 随机选择一天
+                day = random.randint(1, 28)
+                visit_date = datetime(year, month, day,
+                                      random.randint(8, 17),  # 工作时间
+                                      random.randint(0, 59))
+
+                # 随机选择患者
+                patient_id = random.choice(self.patient_ids)
+
+                # 随机选择科室
+                available_depts = list(dept_doctors.keys())
+                selected_dept_id = random.choice(available_depts)
+
+                # 从科室中选择医生
+                dept_doctor_list = dept_doctors.get(selected_dept_id, [])
+                if not dept_doctor_list:
+                    continue
+
+                doctor_info = random.choice(dept_doctor_list)
+
+                # 生成就诊信息
                 chief_complaint = random.choice([
                     "咳嗽、发热3天",
                     "头痛、头晕1周",
                     "腹痛、腹泻2天",
                     "胸闷、气短",
-                    "关节疼痛",
-                    "体检",
-                    "感冒症状"
+                    "关节疼痛"
                 ])
 
                 diagnosis = random.choice([
@@ -541,37 +777,38 @@ class MedicalDataGenerator:
                     "高血压",
                     "急性胃肠炎",
                     "冠心病",
-                    "糖尿病",
-                    "健康体检正常",
-                    "普通感冒"
+                    "糖尿病"
                 ])
 
+                # 计算费用（随时间轻微上涨）
+                months_from_start = (year - 2023) * 12 + (month - 7)
+                fee_inflation = 1.0 + (months_from_start * 0.01)  # 每月上涨1%
+
+                base_fee = random.uniform(50.0, 200.0)
+                total_fee = round(base_fee * fee_inflation, 2)
+
                 visit = {
-                    'visit_number': f'VIS{str(visit_counter).zfill(8)}',
+                    'visit_number': f'TRD{str(visit_counter).zfill(8)}',
                     'patient_id': patient_id,
                     'hospital_id': doctor_info['hospital_id'],
-                    'department_id': doctor_info['department_id'],
+                    'department_id': selected_dept_id,
                     'doctor_id': doctor_info['doctor_id'],
                     'visit_date': visit_date,
                     'visit_type': random.choice(['普通门诊', '急诊', '复诊']),
                     'chief_complaint': chief_complaint,
                     'diagnosis': diagnosis,
-                    'advice': random.choice([
-                        "注意休息，多喝水",
-                        "按时服药，定期复查",
-                        "低盐低脂饮食",
-                        "适当运动，控制体重"
-                    ]),
-                    'temperature': round(random.uniform(36.0, 39.5), 1) if random.random() > 0.3 else None,
-                    'blood_pressure': f"{random.randint(100, 160)}/{random.randint(60, 100)}" if random.random() > 0.4 else None,
-                    'heart_rate': random.randint(60, 120) if random.random() > 0.4 else None,
-                    'payment_status': random.choice(['已支付', '医保结算', '未支付']),
-                    'total_fee': round(random.uniform(50.0, 500.0), 2),
-                    'is_emergency': random.choices([True, False], weights=[0.2, 0.8])[0]
+                    'advice': "注意休息，按时服药",
+                    'temperature': round(random.uniform(36.5, 38.5), 1),
+                    'blood_pressure': f"{random.randint(110, 140)}/{random.randint(70, 90)}",
+                    'heart_rate': random.randint(65, 85),
+                    'payment_status': random.choice(['已支付', '医保结算']),
+                    'total_fee': total_fee,
+                    'is_emergency': random.random() < 0.1
                 }
                 visits.append(visit)
                 visit_counter += 1
 
+        print(f"✅ 已生成 {len(visits)} 个具有时间趋势的就诊记录")
         return visits
 
     def insert_medical_visits(self, visits):
@@ -712,8 +949,15 @@ class MedicalDataGenerator:
             exam_items = self.generate_examination_items(20)
             self.insert_examination_items(exam_items)
 
-            # 7. 生成就诊记录
-            visits = self.generate_medical_visits(3)
+            # 7. 生成就诊记录（使用新版支持时间趋势）
+            print("\n📅 生成具有时间趋势的就诊记录...")
+
+            # 方法1：使用完整的时间趋势生成
+            # visits = self.generate_trend_medical_visits(3)
+
+            # 方法2：使用增强版的随机生成
+            visits = self.generate_medical_visits(3)  # 使用上面修改后的方法
+
             visit_ids = self.insert_medical_visits(visits)
 
             # 8. 生成检查记录
@@ -728,7 +972,7 @@ class MedicalDataGenerator:
             raise
 
     def verify_data(self):
-        """验证生成的数据（简化版）"""
+        """验证生成的数据（增加月度统计）"""
         print("\n🔍 验证生成的数据...")
 
         queries = [
@@ -747,7 +991,39 @@ class MedicalDataGenerator:
             result = self.cursor.fetchone()
             print(f"  {label}: {result['count']}")
 
-        # 检查数据质量
+        # 检查月度就诊数据
+        print("\n📅 月度就诊统计:")
+        self.cursor.execute("""
+            SELECT 
+                DATE_FORMAT(visit_date, '%Y-%m') as month,
+                COUNT(*) as visit_count,
+                SUM(total_fee) as monthly_revenue,
+                AVG(total_fee) as avg_fee_per_visit
+            FROM medical_visits
+            WHERE visit_date >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH)
+            GROUP BY DATE_FORMAT(visit_date, '%Y-%m')
+            ORDER BY month
+        """)
+
+        monthly_stats = self.cursor.fetchall()
+        if monthly_stats:
+            print("  月份      就诊次数   月收入(元)   平均费用")
+            print("  -------------------------------------------")
+            for row in monthly_stats:
+                print(
+                    f"  {row['month']:10} {row['visit_count']:8} {row['monthly_revenue']:12.2f} {row['avg_fee_per_visit']:10.2f}")
+
+            # 计算增长率
+            if len(monthly_stats) >= 2:
+                latest = monthly_stats[-1]['visit_count']
+                prev = monthly_stats[-2]['visit_count']
+                if prev > 0:
+                    growth_rate = ((latest - prev) / prev) * 100
+                    print(f"\n  📈 最近月度增长率: {growth_rate:+.1f}%")
+        else:
+            print("  📭 无月度就诊数据")
+
+        # 其他检查保持不变...
         print("\n📊 数据质量检查:")
 
         # 检查患者是否有就诊记录
@@ -763,16 +1039,16 @@ class MedicalDataGenerator:
 
         # 检查医生工作量
         self.cursor.execute("""
-            SELECT d.name, COUNT(mv.visit_id) as visit_count
+            SELECT d.name, COUNT(mv.visit_id) as visit_count, SUM(mv.total_fee) as total_revenue
             FROM doctors d
             LEFT JOIN medical_visits mv ON d.doctor_id = mv.doctor_id
-            GROUP BY d.doctor_id
+            GROUP BY d.doctor_id, d.name
             ORDER BY visit_count DESC
             LIMIT 5
         """)
         print(f"  医生工作量Top 5:")
         for row in self.cursor.fetchall():
-            print(f"    {row['name']}: {row['visit_count']}次就诊")
+            print(f"    {row['name']}: {row['visit_count']}次就诊, 收入¥{row['total_revenue']:.2f}")
 
         print("\n✅ 数据验证完成")
 

@@ -39,6 +39,8 @@ medical_database/
 |   |──verify_data.py                 # 虚假数据验证
 |   |──create_image_tables.sql        # 建表SQL（图片相关表）
 |   |──create_medical_tables.sql      # 建表SQL（其余表）
+|   |──font_test.py                   # 故障测试：中文字符显示问题
+|   |──test_upload_issues.py          # 故障测试：图片上传失败
 |   └──visualization.py               # 图表生成工具类
 |──medical_images/
 |   |──originals/                     # 原始图片
@@ -84,34 +86,35 @@ mysql -u root -p medical_db < scripts/create_medical_tables.sql
 
 ## 数据库E-R图
 
-### 实体关系图（根据以下表关系说明进行修改）
+### 实体关系图
 ![E-R图](E-R.jpg)
 
 ### 表关系说明
 1. 一对一关系
    - 一个患者只拥有一个用户
    - 一个医生只拥有一个用户
-   - 一个医生只属于一个科室（？）
-   - 一个药剂师只属于一个科室（？）
-   - 一个技师只属于一个科室（？）
-   - 一个医疗影像只属于一个影像分类（+）
+   - 一个药剂师只属于一个科室
+   - 一个技师只属于一个科室
+   - 一个医疗影像只属于一个影像分类
 2. 一对多关系
    - 一个患者可拥有多个就诊记录
-   - 一个患者可拥有多个医疗影像（+）
+   - 一个患者可拥有多个医疗影像
    - 一个医生可拥有多个就诊记录
+   - 一个科室可拥有多个医生
    - 一个医院可包含多个科室
-   - 一个技师可拥有多个医疗影像（+）
    - 一个就诊记录可包含多个检查记录
-   - 一个就诊记录可包含多个医疗影像（+）
+   - 一个就诊记录可包含多个医疗影像
    - 一个就诊记录可开具多个处方
+   - 一个检查记录可包含多个医疗影像
    - 一个处方可包含多个处方明细
    - 一个药剂师可使用多个药品目录
 3. 多对多关系
    - 患者通过就诊记录关联医生
+   - 技师通过检查记录关联医疗影像
 
 ## 数据库表结构
 
-（待更新）
+参考《数据实体详细定义.doc》
 
 ## 功能演示
 
@@ -133,21 +136,24 @@ python scripts/test_image_storage.py
 python scripts/medical_visualization_demo.py
 ```
 
-### 4. 图片管理应用（待完成）
-
-```commandline
-python scripts/medical_image_app.py
-```
-
 ## 可视化功能（待完善）
 
 MDBMS提供多种数据可视化图表：
 
 ### 图表类型
 
+- 各科室就诊量统计（分组柱状图）
+![各科室就诊量统计](/scripts/visualizations/basic_department_visits.png)
+- 科室就诊统计（双子图对比仪表板）
+![科室就诊统计](/scripts/visualizations/department_stats_20260111_185519.png)
+- 医生就诊量和收入排名Top 10（双轴分组柱状图）
+![医生就诊量和收入排名Top 10](/scripts/visualizations/doctor_ranking_20260111_185518.png)
+- 月度就诊增长趋势（双轴组合图表）
+![月度就诊增长趋势](/scripts/visualizations/monthly_growth_20260111_185519.png)
+
 ### 图表输出
 - 格式：PNG（300 DPI）
-- 保存路径：medical_images/目录
+- 保存路径：scripts/visualizations/目录
 - 自动生成时间戳文件名
 
 ## 医疗图片管理
@@ -195,13 +201,20 @@ SET FOREIGN_KEY_CHECKS = 0;
 --重新启用外键检查
 SET FOREIGN_KEY_CHECKS = 1;
 ```
-3. 中文字符显示问题（测试文档待完成）
+3. 中文字符显示问题
    - 确保数据库使用utf8mb4编码
-   - 参考scripts/font_test.py进行测试
-4. 图片上传失败（引导待完成）
-   - 检查存储目录权限
-   - 验证患者ID是否存在
-   - 检查文件大小限制
+   - 调用scripts/font_test.py进行测试
+```commandline
+python scripts/font_test.py
+```
+4. 图片上传失败
+   - 综合测试
+     - 检查存储目录权限
+     - 验证患者ID是否存在
+     - 检查文件大小限制
+```commandline
+python test_upload_issues.py
+```
 
 ## 未来计划
 

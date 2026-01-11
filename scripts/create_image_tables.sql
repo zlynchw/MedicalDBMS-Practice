@@ -4,7 +4,7 @@
 SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
 
--- 创建图片分类表
+-- 创建影像分类表
 DROP TABLE IF EXISTS `image_categories`;
 CREATE TABLE `image_categories` (
   `category_id` int NOT NULL AUTO_INCREMENT,
