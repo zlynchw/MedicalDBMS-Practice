@@ -136,7 +136,7 @@ python scripts/test_image_storage.py
 python scripts/medical_visualization_demo.py
 ```
 
-## 可视化功能（待完善）
+## 可视化功能
 
 MDBMS提供多种数据可视化图表：
 
